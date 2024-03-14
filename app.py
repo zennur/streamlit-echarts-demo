@@ -1,71 +1,59 @@
-import inspect
-import textwrap
-
 import streamlit as st
+import pandas as pd
+import plotly.express as px
 
-from demo_echarts import ST_DEMOS
-from demo_pyecharts import ST_PY_DEMOS
+# Title of the app
+st.title("Data Visualization App for Product Owners")
 
+# File uploader widget
+uploaded_file = st.file_uploader("Choose a CSV or Excel file", type=['csv', 'xlsx'])
 
-def main():
-    st.title("Streamlit ECharts Demo")
+if uploaded_file is not None:
+    # Read the uploaded file
+    if uploaded_file.type == "text/csv":
+        df = pd.read_csv(uploaded_file)
+    elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+        df = pd.read_excel(uploaded_file)
 
-    with st.sidebar:
-        st.header("Configuration")
-        api_options = ("echarts", "pyecharts")
-        selected_api = st.selectbox(
-            label="Choose your preferred API:",
-            options=api_options,
-        )
+    # Display the dataframe
+    st.write("Data Preview:", df.head())
 
-        page_options = (
-            list(ST_PY_DEMOS.keys())
-            if selected_api == "pyecharts"
-            else list(ST_DEMOS.keys())
-        )
-        selected_page = st.selectbox(
-            label="Choose an example",
-            options=page_options,
-        )
-        demo, url = (
-            ST_DEMOS[selected_page]
-            if selected_api == "echarts"
-            else ST_PY_DEMOS[selected_page]
-        )
+    # Column selection for visualization
+    columns = df.columns.tolist()
+    selected_columns = st.multiselect("Select columns to visualize", columns, default=columns[:2])
 
-        if selected_api == "echarts":
-            st.caption(
-                """ECharts demos are extracted from https://echarts.apache.org/examples/en/index.html, 
-            by copying/formattting the 'option' json object into st_echarts.
-            Definitely check the echarts example page, convert the JSON specs to Python Dicts and you should get a nice viz."""
-            )
-        if selected_api == "pyecharts":
-            st.caption(
-                """Pyecharts demos are extracted from https://github.com/pyecharts/pyecharts-gallery,
-            by copying the pyecharts object into st_pyecharts. 
-            Pyecharts is still using ECharts 4 underneath, which is why the theming between st_echarts and st_pyecharts is different."""
-            )
+    # Choosing a plot type
+    plot_type = st.selectbox("Select the type of plot", ["Line", "Bar", "Scatter", "Heatmap", "Time Series"])
 
-    demo()
-
-    sourcelines, _ = inspect.getsourcelines(demo)
-    with st.expander("Source Code"):
-        st.code(textwrap.dedent("".join(sourcelines[1:])))
-    st.markdown(f"Credit: {url}")
+    # Plotting based on the selected options
+    if st.button("Generate Plot"):
+        if plot_type == "Line":
+            fig = px.line(df, x=selected_columns[0], y=selected_columns[1:])
+        elif plot_type == "Bar":
+            fig = px.bar(df, x=selected_columns[0], y=selected_columns[1:])
+        elif plot_type == "Scatter":
+            fig = px.scatter(df, x=selected_columns[0], y=selected_columns[1])
+        # Heatmap option
+        elif plot_type == "Heatmap":
+            fig = px.imshow(df[selected_columns].corr())
+            st.plotly_chart(fig)
+        # Convert column to datetime if necessary
+        # df['Your Date Column'] = pd.to_datetime(df['Your Date Column'])
+        elif plot_type == "Time Series":
+            time_column = st.selectbox("Select the time column", options=selected_columns)
+            df[time_column] = pd.to_datetime(df[time_column], unit='us')
+            # value_column = st.selectbox("Select the value column", options=[col for col in selected_columns if col != time_column])
+            value_columns = [x for x in selected_columns if x != time_column]
+            fig = px.line(df, x=time_column, y=value_columns, title='Time Series Plot')
+            st.plotly_chart(fig)
 
 
-if __name__ == "__main__":
-    st.set_page_config(
-        page_title="Streamlit ECharts Demo", page_icon=":chart_with_upwards_trend:"
-    )
-    main()
-    with st.sidebar:
-        st.markdown("---")
-        st.markdown(
-            '<h6>Made in &nbsp<img src="https://streamlit.io/images/brand/streamlit-mark-color.png" alt="Streamlit logo" height="16">&nbsp by <a href="https://twitter.com/andfanilo">@andfanilo</a></h6>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<div style="margin-top: 0.75em;"><a href="https://www.buymeacoffee.com/andfanilo" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a></div>',
-            unsafe_allow_html=True,
-        )
+
+        st.plotly_chart(fig)
+
+# Instructions or user guide
+st.sidebar.header("Instructions")
+st.sidebar.text("1. Upload your CSV or Excel file.")
+st.sidebar.text("2. Select the columns to visualize.")
+st.sidebar.text("3. Choose the type of plot.")
+st.sidebar.text("4. Click on 'Generate Plot' to visualize.")
